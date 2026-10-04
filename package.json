@@ -2,5 +2,8 @@
   "name": "panel-casa",
   "private": true,
   "version": "1.0.0",
-  "description": "Panel de casa: cuadrante de limpieza, gastos, compras e ideas"
+  "description": "Panel de casa: cuadrante de limpieza, gastos, compras e ideas",
+  "dependencies": {
+    "@neondatabase/serverless": "^1.2.0"
+  }
 }

@@ -6,8 +6,8 @@ Se puede instalar en el móvil ("Añadir a pantalla de inicio") y funciona sin c
 ## Publicar en Vercel
 
 1. Vercel → Add New → Project → importar este repositorio (preset "Other", sin build).
-2. En el proyecto: Storage → crear una base de datos **Upstash Redis** y conectarla al proyecto.
-   Vercel añade solo las variables `KV_REST_API_URL` y `KV_REST_API_TOKEN`.
+2. En el proyecto: Storage → crear una base de datos (**Neon Postgres** o **Upstash Redis**) y conectarla al proyecto.
+   Vercel añade solo las variables (`DATABASE_URL` o `KV_REST_API_URL`). La app crea sus tablas sola.
 3. Redeploy. Sin base de datos la app funciona igual, pero guarda solo en cada móvil.
 
 ## Entrar

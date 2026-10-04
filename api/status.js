@@ -1,10 +1,10 @@
-// Diagnóstico: si hay base de datos conectada y qué variables ve (solo nombres, nunca valores).
-const { redisConfig, redis, dbEnvNames } = require("./_lib");
+// Diagnóstico: qué base de datos ve la app y si responde (solo nombres de variables, nunca valores).
+const { getStore, dbEnvNames } = require("./_lib");
 
 module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
-  const cfg = redisConfig();
-  let ok = false;
-  if (cfg) { try { await redis(cfg, [["PING"]]); ok = true; } catch (e) {} }
-  res.status(200).json({ database: !!cfg, reachable: ok, vars: dbEnvNames() });
+  const store = getStore();
+  let reachable = false, error = null;
+  if (store) { try { await store.ping(); reachable = true; } catch (e) { error = String(e && e.message || e).slice(0, 200); } }
+  res.status(200).json({ database: store ? store.kind : false, reachable, error, vars: dbEnvNames() });
 };
