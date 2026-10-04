@@ -1,10 +1,22 @@
 const crypto = require("crypto");
 
+// Upstash conectado desde Vercel crea variables como KV_REST_API_URL / KV_REST_API_TOKEN,
+// pero con otro prefijo si se eligió uno al conectar (p. ej. STORAGE_KV_REST_API_URL).
 function redisConfig() {
-  const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
-  return url && token ? { url: url.replace(/\/$/, ""), token } : null;
+  const env = process.env;
+  const direct = [["KV_REST_API_URL", "KV_REST_API_TOKEN"], ["UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN"]];
+  for (const [u, t] of direct) if (env[u] && env[t]) return { url: env[u].replace(/\/$/, ""), token: env[t] };
+  for (const k of Object.keys(env)) {
+    const m = k.match(/^(.*)(KV_REST_API|REDIS_REST)_URL$/);
+    if (!m) continue;
+    const tok = env[m[1] + m[2] + "_TOKEN"];
+    if (env[k] && tok) return { url: env[k].replace(/\/$/, ""), token: tok };
+  }
+  return null;
 }
+
+// Solo nombres (nunca valores) de variables que parecen de la base de datos, para diagnosticar.
+const dbEnvNames = () => Object.keys(process.env).filter(k => /KV|REDIS|UPSTASH/.test(k)).sort();
 
 async function redis(cfg, commands) {
   const r = await fetch(cfg.url + "/pipeline", {
@@ -28,4 +40,4 @@ async function checkPin(cfg, req) {
   return !!stored && stored === hashPin(pin);
 }
 
-module.exports = { redisConfig, redis, hashPin, checkPin };
+module.exports = { dbEnvNames, redisConfig, redis, hashPin, checkPin };

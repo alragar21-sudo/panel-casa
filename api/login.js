@@ -1,12 +1,12 @@
 // Código de la casa. El primero que entra lo crea; después se comprueba.
 // GET  /api/login        -> { hasPin: bool }
 // POST /api/login {pin}  -> { ok: true, created?: true } o 401
-const { redisConfig, redis, hashPin } = require("./_lib");
+const { redisConfig, redis, hashPin, dbEnvNames } = require("./_lib");
 
 module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   const cfg = redisConfig();
-  if (!cfg) return res.status(503).json({ error: "no_database" });
+  if (!cfg) return res.status(503).json({ error: "no_database", vars: dbEnvNames() });
   try {
     if (req.method === "GET") {
       const [h] = await redis(cfg, [["HGET", "panel:config", "pin"]]);
