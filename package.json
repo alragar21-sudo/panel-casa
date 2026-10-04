@@ -2,6 +2,5 @@
   "name": "panel-casa",
   "private": true,
   "version": "1.0.0",
-  "description": "Panel de casa: cuadrante de limpieza, gastos, compras e ideas",
-  "engines": { "node": ">=18" }
+  "description": "Panel de casa: cuadrante de limpieza, gastos, compras e ideas"
 }
