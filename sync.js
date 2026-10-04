@@ -22,8 +22,18 @@
     (listeners[col] || []).forEach(fn => { try { fn(snapOf(col)); } catch (e) { console.error(e); } });
   }
 
+  const pinHeader = () => { try { return { "X-Casa-Pin": localStorage.getItem("casa.pin") || "" }; } catch (e) { return {}; } };
+  function kicked(status) {
+    // El código de la casa ya no vale (lo han cambiado): volver a la pantalla de entrada.
+    if (status !== 401) return;
+    let had = false;
+    try { had = !!localStorage.getItem("casa.pin"); localStorage.removeItem("casa.pin"); } catch (e) {}
+    if (had) location.reload();
+  }
+
   async function pull() {
-    const r = await fetch("/api/data", { cache: "no-store" });
+    const r = await fetch("/api/data", { cache: "no-store", headers: pinHeader() });
+    kicked(r.status);
     if (!r.ok) throw Object.assign(new Error("http " + r.status), { status: r.status });
     const data = await r.json();
     if (pendingWrites) return;   // no pisar un cambio que aún se está guardando
@@ -34,9 +44,10 @@
     pendingWrites++;
     try {
       const r = await fetch("/api/data", {
-        method, headers: { "Content-Type": "application/json" },
+        method, headers: Object.assign({ "Content-Type": "application/json" }, pinHeader()),
         body: JSON.stringify({ col, id, data })
       });
+      kicked(r.status);
       if (!r.ok) throw { code: r.status === 400 ? "transform_error" : "unavailable", message: "HTTP " + r.status };
       cache[col] = Object.assign({}, cache[col]);
       if (method === "DELETE") delete cache[col][id]; else cache[col][id] = data;
@@ -79,7 +90,7 @@
 
   window.claude = {
     use(name) {
-      if (name === "db") return start();
+      if (name === "db") return window.CASA_USER ? start() : Promise.resolve(null);
       return Promise.resolve(null);
     }
   };

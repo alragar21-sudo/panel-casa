@@ -2,28 +2,13 @@
 // GET  /api/data                      -> { checks: {id: doc}, gastos: {...}, compras: {...}, ideas: {...} }
 // POST /api/data   {col, id, data}    -> guarda (reemplaza) un documento
 // DELETE /api/data {col, id}          -> borra un documento
+// Todas necesitan la cabecera X-Casa-Pin con el código de la casa.
+
+const { redisConfig, redis, checkPin } = require("./_lib");
 
 const COLS = ["checks", "gastos", "compras", "ideas"];
 const ID_RE = /^[A-Za-z0-9_\-.~:@+]{1,200}$/;
 const PREFIX = "panel:";
-
-function redisConfig() {
-  const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
-  return url && token ? { url: url.replace(/\/$/, ""), token } : null;
-}
-
-async function redis(cfg, commands) {
-  const r = await fetch(cfg.url + "/pipeline", {
-    method: "POST",
-    headers: { Authorization: "Bearer " + cfg.token, "Content-Type": "application/json" },
-    body: JSON.stringify(commands),
-  });
-  if (!r.ok) throw new Error("redis " + r.status);
-  const out = await r.json();
-  for (const x of out) if (x.error) throw new Error(x.error);
-  return out.map(x => x.result);
-}
 
 function readBody(req) {
   if (req.body && typeof req.body === "object") return req.body;
@@ -36,6 +21,8 @@ module.exports = async (req, res) => {
   if (!cfg) return res.status(503).json({ error: "no_database" });
 
   try {
+    if (!(await checkPin(cfg, req))) return res.status(401).json({ error: "bad_pin" });
+
     if (req.method === "GET") {
       const results = await redis(cfg, COLS.map(c => ["HGETALL", PREFIX + c]));
       const data = {};

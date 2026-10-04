@@ -203,8 +203,22 @@ textarea.inp{resize:vertical;min-height:84px;border-radius:22px}
 .idea footer{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:12px;font-weight:600}
 .idea .del{color:#3A1420}
 @media (max-width:360px){.ideas,.row2{grid-template-columns:1fr}}
+/* Entrada */
+html.locked .wrap,html.locked .tabbar{visibility:hidden}
+.login{position:fixed;inset:0;z-index:20;background:var(--bg);overflow-y:auto;display:flex;justify-content:center;padding:calc(32px + env(safe-area-inset-top,0px)) 16px calc(32px + env(safe-area-inset-bottom,0px))}
+.login-card{width:100%;max-width:440px;display:flex;flex-direction:column;gap:18px}
+.login-card .eyebrow{align-self:flex-start}
+.login-people{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.lp{font-family:var(--display);font-weight:600;font-size:24px;color:#3A1420;padding:26px 10px;border-radius:999px;border:3px solid transparent;transition:transform .15s}
+.lp:nth-child(2){border-radius:40px 999px 999px 999px}
+.lp:nth-child(3){border-radius:999px 999px 999px 40px}
+.lp[aria-pressed="true"]{border-color:var(--ink);transform:scale(1.03)}
+.login-err{margin:0;min-height:1.3em;color:var(--bad);font-weight:600}
+.whoami{display:inline-flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;font-weight:600;background:var(--chip);border:2px solid var(--line);border-radius:999px;padding:5px 6px 5px 12px}
+.whoami button{font-size:12.5px;font-weight:600;background:var(--ink);color:var(--bg);border-radius:999px;padding:4px 10px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
 </style>
+<script src="/login.js"></script>
 <script src="/sync.js"></script>
 </head>
 <body>
@@ -214,6 +228,7 @@ textarea.inp{resize:vertical;min-height:84px;border-radius:22px}
     <span class="eyebrow" id="heroEyebrow">Cuadrante semanal</span>
     <h1 id="heroTitle">¿Qué toca<span>limpiar hoy?</span></h1>
     <p class="sub" id="heroSub">Desliza entre semanas. Marca tu zona cuando la termines.</p>
+    <div class="whoami" id="whoami" hidden><span id="whoName"></span><button type="button" onclick="casaLogout()">Cambiar</button></div>
   </header>
 
   <section class="view" id="v-calendario">
@@ -272,7 +287,6 @@ textarea.inp{resize:vertical;min-height:84px;border-radius:22px}
   <section class="view" id="v-ideas" hidden>
     <form class="panel" id="fIdea" autocomplete="off">
       <div class="field"><label for="iTexto">Idea</label><textarea class="inp" id="iTexto" maxlength="400" placeholder="Ej: comprar plantas para el salón, cena de piso el viernes…" required></textarea></div>
-      <div class="field"><span class="flabel">¿De quién es?</span><div class="chips" id="iWho" role="group" aria-label="Autora"></div></div>
       <button class="go" type="submit">Guardar idea</button>
     </form>
     <div class="ideas" id="iList"></div>
@@ -394,7 +408,8 @@ textarea.inp{resize:vertical;min-height:84px;border-radius:22px}
         const st = statusOf(w, z.id);
         const who = w.who[z.id];
         const mine = !me || who.includes(me);
-        const label = {done:"Hecho", late:"Vencido", now:"Pendiente", next:"Próximamente"}[st];
+        const by0 = (checks[w.key + "_" + z.id] || {}).by;
+        const label = {done:"Hecho" + (by0 && by0 !== who[0] ? " por " + by0 : ""), late:"Vencido", now:"Pendiente", next:"Próximamente"}[st];
         rows += '<li class="task ' + (st === "done" ? "done" : st === "late" ? "late" : "") + (who.length > 1 ? " pair" : "") + (mine ? "" : " dim") + '">'
           + '<span class="ico" style="background:' + z.col + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + ICONS[z.id] + '</svg></span>'
           + '<div class="tbody"><b>' + z.name + '</b>';
@@ -461,13 +476,13 @@ textarea.inp{resize:vertical;min-height:84px;border-radius:22px}
     const btn = e.target.closest(".check, .pcheck"); if (!btn || !writable) return;
     const k = btn.dataset.k; if (pending.has(k)) return;
     const turnOn = !checks[k];
-    if (turnOn) checks[k] = {done:true, at:new Date().toISOString()}; else delete checks[k];
+    if (turnOn) checks[k] = {done:true, at:new Date().toISOString(), by:window.CASA_USER || ""}; else delete checks[k];
     renderWeeks();
     if (!db) { try { localStorage.setItem("limpieza.local", JSON.stringify(checks)); } catch(err) {} return; }
     pending.add(k);
     try {
       const ref = db.doc("checks/" + k);
-      if (turnOn) await ref.set({done:true, at:checks[k].at, week:k.slice(0,10), zone:k.slice(11).split("-")[0]});
+      if (turnOn) await ref.set({done:true, at:checks[k].at, by:checks[k].by, week:k.slice(0,10), zone:k.slice(11).split("-")[0]});
       else await ref.delete();
     } catch(err) {
       if (err && err.code === "invalid_argument") { writable = false; setSync(true, "No se pudo guardar. Inténtalo de nuevo"); }
@@ -526,6 +541,8 @@ textarea.inp{resize:vertical;min-height:84px;border-radius:22px}
   const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
   const X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
 
+  if (window.CASA_USER) { $("whoName").textContent = "Hola, " + window.CASA_USER; $("whoami").hidden = false; }
+
   // ---------- Pestañas ----------
   const VIEWS = ["calendario","gastos","compras","ideas"];
   function show(v){
@@ -583,7 +600,7 @@ textarea.inp{resize:vertical;min-height:84px;border-radius:22px}
   // ---------- Gastos (estilo Tricount) ----------
   // Cada gasto: pagó X, se reparte a partes iguales entre "para". Un reembolso es un gasto de X para [Y].
   $("gPago").innerHTML = PEOPLE.map(p => "<option>" + esc(p) + "</option>").join("");
-  try { const me = localStorage.getItem("limpieza.me"); if (me) $("gPago").value = me; } catch(e) {}
+  if (window.CASA_USER) $("gPago").value = window.CASA_USER;
   let para = PEOPLE.slice();
   function renderPara(){
     $("gPara").innerHTML = PEOPLE.map(p => '<button class="chip" type="button" data-p="' + esc(p) + '" aria-pressed="' + para.includes(p) + '">' + esc(p) + '</button>').join("");
@@ -601,8 +618,8 @@ textarea.inp{resize:vertical;min-height:84px;border-radius:22px}
     e.preventDefault();
     const concepto = $("gConcepto").value.trim(), importe = Math.round(parseFloat(String($("gImporte").value).replace(",", ".")) * 100) / 100;
     if (!concepto || !(importe > 0) || !para.length) return;
-    put("gastos", newId(), {concepto, importe, pago: $("gPago").value, para: para.slice(), tipo: "gasto", fecha: new Date().toISOString()});
-    $("gConcepto").value = ""; $("gImporte").value = ""; para = PEOPLE.slice(); renderPara();
+    put("gastos", newId(), {concepto, importe, pago: $("gPago").value, para: para.slice(), tipo: "gasto", por: window.CASA_USER || "", fecha: new Date().toISOString()});
+    $("gConcepto").value = ""; $("gImporte").value = ""; para = PEOPLE.slice(); renderPara(); if (window.CASA_USER) $("gPago").value = window.CASA_USER;
   });
   wireDelete($("gList"), "gastos");
   function balances(items){
@@ -635,7 +652,7 @@ textarea.inp{resize:vertical;min-height:84px;border-radius:22px}
     const b = e.target.closest(".mini"); if (!b || !writable) return;
     if (!b.classList.contains("arm")) { b.classList.add("arm"); b.textContent = "¿Confirmar?"; setTimeout(() => { if (b.isConnected) { b.classList.remove("arm"); b.textContent = "Pagado"; } }, 3000); return; }
     const importe = Number(b.dataset.c) / 100;
-    put("gastos", newId(), {concepto: "Reembolso", importe, pago: b.dataset.de, para: [b.dataset.a], tipo: "reembolso", fecha: new Date().toISOString()});
+    put("gastos", newId(), {concepto: "Reembolso", importe, pago: b.dataset.de, para: [b.dataset.a], tipo: "reembolso", por: window.CASA_USER || "", fecha: new Date().toISOString()});
   });
   function renderGastos(){
     const items = list("gastos").sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)));
@@ -675,13 +692,13 @@ textarea.inp{resize:vertical;min-height:84px;border-radius:22px}
   $("fCompra").addEventListener("submit", e => {
     e.preventDefault();
     const nombre = $("cNombre").value.trim(); if (!nombre) return;
-    put("compras", newId(), {nombre, prioridad: prio, comprado: false, fecha: new Date().toISOString()});
+    put("compras", newId(), {nombre, prioridad: prio, comprado: false, por: window.CASA_USER || "", fecha: new Date().toISOString()});
     $("cNombre").value = ""; prio = ""; renderPrio(); $("cNombre").focus();
   });
   $("cList").addEventListener("click", e => {
     const b = e.target.closest(".check"); if (!b || !writable) return;
     const it = data.compras[b.dataset.id]; if (!it) return;
-    put("compras", b.dataset.id, Object.assign({}, it, {comprado: !it.comprado}));
+    put("compras", b.dataset.id, Object.assign({}, it, {comprado: !it.comprado, compradoPor: !it.comprado ? (window.CASA_USER || "") : ""}));
   });
   $("cClear").addEventListener("click", async () => {
     for (const it of list("compras").filter(x => x.comprado)) await del("compras", it.id);
@@ -696,23 +713,16 @@ textarea.inp{resize:vertical;min-height:84px;border-radius:22px}
       const p = PRIOS.find(x => x[0] === (it.prioridad || ""));
       return '<li class="item' + (it.comprado ? " bought" : "") + '">'
         + '<button class="check" type="button" data-id="' + esc(it.id) + '" aria-pressed="' + !!it.comprado + '" aria-label="Marcar ' + esc(it.nombre) + ' como comprado">' + CHECK + '</button>'
-        + '<div class="main"><b>' + esc(it.nombre) + '</b><div class="meta">' + (it.prioridad ? '<span class="prio ' + esc(it.prioridad) + '">' + p[1] + '</span>' : '') + '<span>' + fdate(it.fecha) + '</span></div></div>'
+        + '<div class="main"><b>' + esc(it.nombre) + '</b><div class="meta">' + (it.prioridad ? '<span class="prio ' + esc(it.prioridad) + '">' + p[1] + '</span>' : '') + '<span>' + (it.comprado && it.compradoPor ? "Comprado por " + esc(it.compradoPor) : (it.por ? esc(it.por) + " · " : "") + fdate(it.fecha)) + '</span></div></div>'
         + '<button class="del" type="button" data-id="' + esc(it.id) + '" aria-label="Borrar producto">' + X + '</button></li>';
     }).join("") : '<li class="empty"><b>La lista de compras está vacía</b>Añade lo que se haya acabado y elige si corre prisa.</li>';
   }
 
   // ---------- Ideas ----------
-  let autor = "";
-  try { autor = localStorage.getItem("limpieza.me") || ""; } catch(e) {}
-  function renderWho(){
-    $("iWho").innerHTML = PEOPLE.map(p => '<button class="chip" type="button" data-p="' + esc(p) + '" aria-pressed="' + (autor === p) + '">' + esc(p) + '</button>').join("");
-  }
-  $("iWho").addEventListener("click", e => { const b = e.target.closest(".chip"); if (b) { autor = autor === b.dataset.p ? "" : b.dataset.p; renderWho(); } });
-  renderWho();
   $("fIdea").addEventListener("submit", e => {
     e.preventDefault();
     const texto = $("iTexto").value.trim(); if (!texto) return;
-    put("ideas", newId(), {texto, autor, fecha: new Date().toISOString()});
+    put("ideas", newId(), {texto, autor: window.CASA_USER || "", fecha: new Date().toISOString()});
     $("iTexto").value = "";
   });
   wireDelete($("iList"), "ideas");

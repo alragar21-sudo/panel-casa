@@ -1,6 +1,6 @@
 // Funciona sin conexión: la app se guarda en caché; los datos (/api) siempre van a la red.
-const CACHE = "casa-v1";
-const SHELL = ["/", "/index.html", "/sync.js", "/manifest.webmanifest", "/icons/icon.svg", "/icons/icon-192.png"];
+const CACHE = "casa-v2";
+const SHELL = ["/", "/index.html", "/login.js", "/sync.js", "/manifest.webmanifest", "/icons/icon.svg", "/icons/icon-192.png"];
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
